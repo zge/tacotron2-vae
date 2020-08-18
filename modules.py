@@ -22,11 +22,11 @@ class VAE_GST(nn.Module):
             return mu
 
     def forward(self, inputs):
-        enc_out = self.ref_encoder(inputs)
-        mu = self.fc1(enc_out)
-        logvar = self.fc2(enc_out)
-        z = self.reparameterize(mu, logvar)
-        style_embed = self.fc3(z)
+        enc_out = self.ref_encoder(inputs) # [batch_size, E//2]
+        mu = self.fc1(enc_out) # [batch_size, z_latent_dim]
+        logvar = self.fc2(enc_out) # [batch_size, z_latent_dim]
+        z = self.reparameterize(mu, logvar) # [batch_size, z_latent_dim]
+        style_embed = self.fc3(z) # [batch_size, E]
 
         return style_embed, mu, logvar, z
 
@@ -61,7 +61,7 @@ class ReferenceEncoder(nn.Module):
         if hparams.vae_input_type == 'mel':
             self.n_input_dim = hparams.n_mel_channels
         elif hparams.vae_input_type == 'emo':
-            self.n_input_dim = hparams.emotion_embedding_dim
+            self.n_input_dim = hparams.emo_emb_dim
 
         out_channels = self.calculate_channels(self.n_input_dim, 3, 2, 1, K)
         self.gru = nn.GRU(input_size=hparams.ref_enc_filters[-1] * out_channels,
