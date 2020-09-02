@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.io.wavfile import read
-import librosa
 import torch
 import os
 import csv
+#import matplotlib.pyplot as plt
 
 max_wav_value=32768.0
 
@@ -32,6 +32,21 @@ def to_gpu(x):
     if torch.cuda.is_available():
         x = x.cuda(non_blocking=True)
     return torch.autograd.Variable(x)
+
+
+def warp_list(l, warp_size):
+    L = len(l)
+    idx = min(L, warp_size)
+    l2 = [l[:idx]]
+    while idx < L:
+        l2.append(l[idx:min(idx+warp_size, L)])
+        idx += warp_size
+    return l2
+
+
+def split_list(l, n):
+    k, m = divmod(len(l), n)
+    return [l[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
 
 def flatten_list(l):
@@ -136,33 +151,62 @@ def get_batch_sizes(filelist, filelist_cols, batch_size):
         remaining = remaining[batch_size_current:]
     return batch_sizes
 
+def sort_filelist(filelist, filelist_cols, reverse=False):
+    key_values, key = get_key_values(filelist, filelist_cols)
+    idx_value_sorted = sorted(enumerate(key_values), key=lambda x: x[1], reverse=reverse)
+    idxs_sorted = [x[0] for x in idx_value_sorted]
+    filelist_sorted = [filelist[i] for i in idxs_sorted]
+    values_sorted = [x[1] for x in idx_value_sorted]
+    return filelist_sorted, values_sorted, key
 
 def permute_filelist(filelist, filelist_cols, seed=0, permute_opt='rand',
-                     local_rand_factor=0.1):
+                     local_rand_factor=0.1, bucket_size=48, num_bins=10):
+    key, noise_range = '', (0, 0)
     if permute_opt == 'rand':
         filelist_permuted = filelist[:]
         np.random.seed(seed)
         np.random.shuffle(filelist_permuted)
-        key, noise_range = '', (0,0)
+    elif permute_opt == 'sort':
+        filelist_permuted, _, key = sort_filelist(filelist, filelist_cols, reverse=True)
     elif permute_opt == 'semi-sort':
-        key_values, key = get_key_values(filelist, filelist_cols)
-        idx_value_sorted = sorted(enumerate(key_values), key=lambda x:x[1], reverse=True)
-        idxs_sorted = [x[0] for x in idx_value_sorted]
-        filelist_sorted = [filelist[i] for i in idxs_sorted]
-        values_sorted = [x[1] for x in idx_value_sorted]
+        filelist_sorted, values_sorted, key = sort_filelist(filelist, filelist_cols, reverse=True)
         values_range = np.floor(values_sorted[-1]), np.ceil(values_sorted[0])
         noise_upper = (values_range[1] - values_range[0]) * local_rand_factor
         noise_range = -noise_upper/2, noise_upper/2
         values_sorted_noisy = add_rand_noise(values_sorted, noise_range, seed=seed)
         filelist_permuted = sort_with_noise(filelist_sorted, values_sorted_noisy)
-        # # plot to verify semi-sorted order
-        # keys_permuted = [len(line[key_idx].split()) for line in filelist_permuted]
-        # plt.plot(keys_permuted), plt.savefig('verify.png')
+    elif permute_opt == 'bucket':
+        filelist_sorted, _, key = sort_filelist(filelist, filelist_cols, reverse=True)
+        filelist_warped = warp_list(filelist_sorted, bucket_size)
+        np.random.seed(seed)
+        for i in range(len(filelist_warped)):
+            np.random.shuffle(filelist_warped[i])
+        filelist_permuted = flatten_list(filelist_warped)
+    elif permute_opt == 'alternative-sort':
+         np.random.seed(seed)
+         np.random.shuffle(filelist)
+         filelist_split = split_list(filelist, num_bins)
+         for i in range(num_bins):
+             if i % 2 == 0:
+                 filelist_split[i], _, key = sort_filelist(filelist_split[i],
+                     filelist_cols, reverse=False)
+             else:
+                 filelist_split[i], _, key = sort_filelist(filelist_split[i],
+                     filelist_cols, reverse=True)
+         filelist_permuted = flatten_list(filelist_split)
+    # # plot to verify semi-sorted order
+    # key_idx = filelist_cols.index(key)
+    # if key == 'dur':
+    #     keys_permuted = [float(line[key_idx]) for line in filelist_permuted]
+    # else:
+    #     keys_permuted = [len(line[key_idx].split()) for line in filelist_permuted]
+    # plt.plot(keys_permuted), plt.savefig('verify.png'), plt.close()
+
     return filelist_permuted, (key, noise_range)
 
 # import matplotlib.pyplot as plt
 # filelist_permuted = permute_filelist(filelist, filelist_cols, seed,
-#     permute_opt='semi-sort', local_rand_factor=0.1)
+#     permute_opt='semi-sort', local_rand_factor=0.1, bucket_size=48, num_bins=10)
 # keys_permuted = [float(line[key_idx]) for line in filelist_permuted]
 # fig = plt.figure()
 # plt.plot(keys_permuted)

@@ -1,10 +1,10 @@
 import os
-import sys
 import time
 import argparse
 import math
 from numpy import finfo
 import imageio
+import sys
 sys.path.append(os.getcwd())
 
 import torch
@@ -227,7 +227,7 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus, collate_fn
                 print('{}/{}: '.format(i, len(val_loader)), end='')
                 print('Batch: {} ({}X{}) '.format(this_batch_area, this_batch_size,
                     this_batch_length), end='')
-                print('Mem: {:.2f} ({:.2f}+{:.2f}) '.format(mem_use/(1024**2),
+                print('Mem: {:.0f} ({:.0f}+{:.0f}) '.format(mem_use/(1024**2),
                     mem_all/(1024**2), mem_cached/(1024**2)), end='')
                 print('Val loss {:.3f}'.format(reduced_val_loss))
         val_loss = val_loss / (i + 1)
@@ -314,9 +314,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
                 collate_fn['train'])[0]
         print('completing loading model ...')
 
-    model.train()
-    is_overflow = False
-    # ================ MAIN TRAINNIG LOOP! ===================
+    # initiate hpyerparameter tracking
     track_csv = os.path.join(output_directory, log_directory, 'track.csv')
     track_header = ['padding-rate-txt', 'max-len-txt', 'top-len-txt',
         'padding-rate-mel', 'max-len-mel', 'top-len-mel', 'batch-size',
@@ -328,10 +326,12 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
     else:
         track = {k:[] for k in track_header}
 
+    model.train()
+    is_overflow = False
+    # ================ MAIN TRAINNIG LOOP! ===================
     print('start training in epoch {} ~ {} ...'.format(epoch_offset, hparams.epochs))
     nbatches = len(train_loader)
     for epoch in range(epoch_offset, hparams.epochs):
-        #if epoch >= 10: break
         print("Epoch: {}, #batches: {}".format(epoch, nbatches))
         batch_sizes, batch_lengths = [0] * nbatches, [0] * nbatches
         for i, batch in enumerate(train_loader):
@@ -379,9 +379,9 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
                 print("{} ({}:{}/{}): ".format(iteration, epoch, i, nbatches), end='')
                 print("Batch {} ({}X{}) ".format(batch_capacity, batch_sizes[i],
                     batch_lengths[i]), end='')
-                print("Mem {:.1f} ({:.1f}+{:.1f}) ".format(mem_use, mem_all,
+                print("Mem {:.0f} ({:.0f}+{:.0f}) ".format(mem_use, mem_all,
                     mem_cached), end='')
-                print("Train loss {:.3f} Grad Norm {:.3f} {:.2f}s/it".format(
+                print("Train loss {:.3f} Grad Norm {:.2f} {:.2f}s/it".format(
                     reduced_loss, grad_norm, duration))
                 input_lengths, gate_padded = batch[1], batch[4]
                 metadata = (duration, iteration, epoch, i)
@@ -426,8 +426,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
             iteration += 1
 
         if hparams.prep_trainset_per_epoch:
-            train_loader = prepare_dataloaders(hparams, epoch+1, valset,
-                collate_fn['train'])[0]
+            train_loader = prepare_dataloaders(hparams, epoch+1, valset, collate_fn)[0]
             nbatches = len(train_loader)
 
 def parse_args():
@@ -465,13 +464,13 @@ if __name__ == '__main__':
 
     # interactive mode
     args = argparse.ArgumentParser()
-    args.output_directory = 'outdir/ljspeech/ssb-dbs1' # check
+    args.output_directory = 'outdir/ljspeech/sorted1' # check
     args.log_directory = 'logdir'
     args.checkpoint_path = None # fresh run
     args.warm_start = False
     args.n_gpus = 1
     args.rank = 0
-    args.gpu = 1 # check
+    args.gpu = 0 # check
     args.group_name = 'group_name'
     hparams = ["training_files=filelists/ljspeech/ljspeech_wav_train.txt",
                "validation_files=filelists/ljspeech/ljspeech_wav_valid.txt",
@@ -480,9 +479,9 @@ if __name__ == '__main__':
                "seed=0000",
                "shuffle_batches=True",
                "shuffle_samples=False",
-               "permute_opt=semi-sort",
+               "permute_opt=sort",
                "local_rand_factor=0.1",
-               "pre_batching=True",
+               "pre_batching=False",
                "prep_trainset_per_epoch=True",
                "override_sample_size=False",
                "text_cleaners=[english_cleaners]",
@@ -520,7 +519,7 @@ if __name__ == '__main__':
     if args.n_gpus == 1:
         # set current GPU device
         torch.cuda.set_device(args.gpu)
-    print('current GPU: {}'.format(torch.cuda.current_device()))
+        print('current GPU: {}'.format(torch.cuda.current_device()))
 
     torch.backends.cudnn.enabled = hparams.cudnn_enabled
     torch.backends.cudnn.benchmark = hparams.cudnn_benchmark

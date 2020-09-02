@@ -18,6 +18,8 @@ def create_hparams(hparams_string=None, verbose=False):
         shuffle_samples=False, # exclusive with shuffle_audiopaths and shuffle_batches
         permute_opt='rand', # 'rand', 'semi-sort', 'bucket', etc.
         local_rand_factor=0.1, # used when permute_opt == 'semi-sort'
+        local_bucket_factor=3, # used when permute_opt == 'bucket'
+        num_bins = 10, # used when permute_opt == 'alternative-sort'
         pre_batching=True, # pre batch data, so batch_size is 1 in DataLoader
         prep_trainset_per_epoch=False,
         seed=1234,

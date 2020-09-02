@@ -28,6 +28,9 @@ class TextMelLoader(torch.utils.data.Dataset):
         self.prep_trainset_per_epoch = hparams.prep_trainset_per_epoch
         self.filelist_cols = hparams.filelist_cols
         self.local_rand_factor = hparams.local_rand_factor
+        self.local_bucket_factor = hparams.local_bucket_factor
+        self.bucket_size = hparams.local_bucket_factor * hparams.batch_size
+        self.num_bins = hparams.num_bins
         self.include_emo_emb = hparams.include_emo_emb
         self.emo_emb_dim = hparams.emo_emb_dim
         self.text_cleaners = hparams.text_cleaners
@@ -59,7 +62,8 @@ class TextMelLoader(torch.utils.data.Dataset):
             seed = hparams.seed
         if self.shuffle_audiopaths:
             self.audiopaths_and_text = permute_filelist(self.audiopaths_and_text,
-                self.filelist_cols, seed, self.permute_opt, self.local_rand_factor)[0]
+                self.filelist_cols, seed, self.permute_opt, self.local_rand_factor,
+                self.bucket_size, self.num_bins)[0]
         if self.pre_batching:
             batch_sizes = get_batch_sizes(self.audiopaths_and_text,
                                  hparams.filelist_cols, hparams.batch_size)
