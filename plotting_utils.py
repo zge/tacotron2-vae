@@ -3,6 +3,7 @@ matplotlib.use("Agg")
 import matplotlib.pylab as plt
 import numpy as np
 from sklearn.manifold import TSNE
+from sklearn.metrics import silhouette_score
 
 def save_figure_to_numpy(fig):
     # save it to a numpy array.
@@ -82,6 +83,9 @@ def plot_scatter(mus, y, figsize=(8,8)):
     if len(y.shape) > 1:
         y = np.argmax(y, 1)
 
+    # compute silhouette score
+    score = silhouette_score(mus, y)
+
     # sort mus by its variance in descending order and get the first 2 indices
     idx = sorted(np.argsort(np.std(mus, 0))[::-1][:2])
 
@@ -89,7 +93,7 @@ def plot_scatter(mus, y, figsize=(8,8)):
     for i, (c, label) in enumerate(zip(colors, labels)):
         ax.scatter(mus[y==i, idx[0]], mus[y==i, idx[1]], c=c, label=label, alpha=0.5)
     plt.xlabel('dim {}'.format(idx[0])), plt.ylabel('dim {}'.format(idx[1]))
-    plt.title('scatter plot of mus with emotion labels, ' +
+    plt.title('regular emotion clusters (score: {:.2f}), '.format(score) +
               'dim: {}, show {}, {}'.format(mus.shape[1], idx[0], idx[1]))
     plt.grid(True), plt.legend(loc='upper left')
 
@@ -114,12 +118,16 @@ def plot_tsne(mus, y, figsize=(8,8)):
     tsne_model = TSNE(n_components=2, random_state=0, init='random')
     mus_transformed = tsne_model.fit_transform(mus)
 
+    # compute silhouette score
+    score = silhouette_score(mus_transformed, y)
+
     fig, ax = plt.subplots(figsize=figsize)
     for i, (c, label) in enumerate(zip(colors, labels)):
         ax.scatter(mus_transformed[y==i, 0], mus_transformed[y==i, 1],
                    c=c, label=label, alpha=0.5)
     plt.xlabel('dim 0'), plt.ylabel('dim 1')
-    plt.title('t-SNE plot of mus with emotion labels, dim: {}'.format(mus.shape[1]))
+    plt.title('t-SNE emotion clusters (score: {:.2f}), dim: {}'.format(score,
+        mus.shape[1]))
     plt.grid(True), plt.legend(loc='upper left')
 
     fig.canvas.draw()

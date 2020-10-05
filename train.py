@@ -203,14 +203,17 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus, collate_fn
 
         val_loss = 0.0
         y0, y_pred0 = '', ''
+        nbatches = len(val_loader)
+        mus, emotions = [''] * nbatches, [''] * nbatches
         for i, batch in enumerate(val_loader):
             x, y = model.parse_batch(batch)
             y_pred = model(x)
             # save first batch (with full batch size) for logging later
             if not y0 and not y_pred0:
-              y0, y_pred0 = y, y_pred
+                y0, y_pred0 = y, y_pred
             if use_vae:
                 loss, _, _, _ = criterion(y_pred, y, iteration)
+                mus[i], emotions[i] = y_pred[4], y_pred[7]
             else:
                 loss = criterion(y_pred, y)
             if distributed_run:
@@ -239,7 +242,7 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus, collate_fn
         logger.log_validation(val_loss, model, y0, y_pred0, iteration)
 
     if use_vae:
-        mus, emotions = y_pred0[4], y_pred0[7]
+        mus, emotions = torch.cat(mus), torch.cat(emotions)
     else:
         mus, emotions = '', ''
 
@@ -311,7 +314,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
                 epoch_offset = epoch
             print('epoch offset: {}'.format(epoch_offset))
             train_loader = prepare_dataloaders(hparams, epoch_offset, valset,
-                collate_fn['train'])[0]
+                collate_fn)[0]
         print('completing loading model ...')
 
     # initiate hpyerparameter tracking
@@ -464,7 +467,7 @@ if __name__ == '__main__':
 
     # interactive mode
     args = argparse.ArgumentParser()
-    args.output_directory = 'outdir/ljspeech/sorted1' # check
+    args.output_directory = 'outdir/ljspeech/semi-sorted8' # check
     args.log_directory = 'logdir'
     args.checkpoint_path = None # fresh run
     args.warm_start = False
@@ -477,9 +480,9 @@ if __name__ == '__main__':
                "filelist_cols=[audiopath,text,dur,speaker,emotion]",
                "shuffle_audiopaths=True",
                "seed=0000",
-               "shuffle_batches=True",
+               "shuffle_batches=False",
                "shuffle_samples=False",
-               "permute_opt=sort",
+               "permute_opt=semi-sort",
                "local_rand_factor=0.1",
                "pre_batching=False",
                "prep_trainset_per_epoch=True",
